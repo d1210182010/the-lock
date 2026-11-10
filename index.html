@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<!-- 這一頁刻意允許縮放，長輩可以把線索放大來看 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="robots" content="noindex, nofollow">
+<title>· · · ·</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%23c9a86a'/%3E%3C/svg%3E">
+<meta property="og:title" content="有人給了你一組數字">
+<meta property="og:description" content="打開它。">
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/lock.css">
+</head>
+<body>
+
+<main id="lock-page">
+  <h1 class="lock-title" id="lock-title"></h1>
+  <p class="lock-subtitle" id="lock-subtitle"></p>
+  <a class="guide-link hidden" id="btn-guide" target="_blank" rel="noopener"></a>
+
+  <ul class="clues" id="clues"></ul>
+
+  <div class="wheels" id="wheels"></div>
+
+  <div class="lock-actions">
+    <button class="btn-unlock" id="btn-unlock">解 鎖</button>
+    <p class="lock-status" id="status"></p>
+    <div class="hint-log" id="hint-log"></div>
+    <button class="btn-quiet hidden" id="btn-hint">需要一點提示</button>
+    <a class="btn-quiet hidden" id="btn-help" target="_blank" rel="noopener"></a>
+  </div>
+</main>
+
+<div id="unlocked"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/sealed.js"></script>
+<script src="assets/js/unseal.js"></script>
+<script src="assets/js/lock.js"></script>
+</body>
+</html>

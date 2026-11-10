@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="robots" content="noindex, nofollow">
+<title>· · · ·</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%23c9a86a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/story.css">
+</head>
+<body>
+
+<div id="stage">
+
+  <!-- 1. 載入 + 輕觸開始 -->
+  <section class="scene" id="gate">
+    <p id="loading"></p>
+    <div id="loadbar"><i></i></div>
+    <button id="start"></button>
+  </section>
+
+  <!-- 2. 字卡（開場與過場共用） -->
+  <section class="scene" id="cards">
+    <p id="card-line"></p>
+  </section>
+
+  <!-- 3. 十二張圖 -->
+  <section class="scene" id="slides">
+    <div class="slide-layer" id="layerA"><div class="bg"></div><div class="fg"></div></div>
+    <div class="slide-layer" id="layerB"><div class="bg"></div><div class="fg"></div></div>
+    <div id="tap-hint"></div>
+    <div id="slide-progress"><i></i></div>
+  </section>
+
+  <!-- 4. 影片（可能不只一段） -->
+  <section class="scene" id="videoScene">
+    <canvas id="pano"></canvas>
+    <video id="vid" playsinline webkit-playsinline preload="none" crossorigin="anonymous"></video>
+    <div id="captions"><p id="caption"></p></div>
+    <div id="drag-hint"></div>
+    <button id="gyro-btn" class="hidden">體感環顧</button>
+    <div id="clip-progress"></div>
+  </section>
+
+  <!-- 5. 結尾 -->
+  <section class="scene" id="ending">
+    <div id="ending-glow" aria-hidden="true">
+      <i class="bloom"></i>
+      <canvas id="fireflies"></canvas>
+    </div>
+    <p class="end-eyebrow" id="end-eyebrow"></p>
+    <h1 class="end-names" id="end-names"></h1>
+    <p class="end-date" id="end-date"></p>
+    <div class="end-rule"></div>
+    <p class="end-closing" id="end-closing"></p>
+    <div class="end-actions">
+      <a class="btn-primary" id="end-guestbook" target="_blank" rel="noopener"></a>
+      <button class="btn-ghost" id="end-replay"></button>
+    </div>
+  </section>
+
+</div>
+
+<button id="skip"></button>
+<div id="curtain"></div>
+<div id="egg-overlay" aria-hidden="true"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/sealed.js"></script>
+<script src="assets/js/unseal.js"></script>
+<script src="assets/js/pano.js"></script>
+<script src="assets/js/story.js"></script>
+</body>
+</html>

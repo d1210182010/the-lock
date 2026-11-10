@@ -1,0 +1,71 @@
+/* 共用基礎樣式：黑底、無捲動、電影感字體 */
+
+:root {
+  --ink: #f2ede6;
+  --ink-dim: rgba(242, 237, 230, 0.55);
+  --ink-faint: rgba(242, 237, 230, 0.28);
+  --bg: #000;
+  --gold: #c9a86a;
+  --danger: #d9534f;
+  --serif: "Noto Serif TC", "Songti TC", "STSong", "PMingLiU", "MingLiU",
+           "Source Han Serif TC", Georgia, "Times New Roman", serif;
+  --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei",
+          -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --vh: 1vh; /* 由 JS 覆寫，處理行動瀏覽器網址列高度問題 */
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--serif);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  height: calc(var(--vh, 1vh) * 100);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+a { color: inherit; }
+
+.hidden { display: none !important; }
+
+/* 淡入淡出的通用工具 */
+.fade { opacity: 0; transition: opacity 600ms ease; }
+.fade.in { opacity: 1; }
+
+/* 一層永遠蓋在最上面的黑幕，用來做場景之間的切換 */
+#curtain {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 700ms ease;
+  z-index: 900;
+}
+#curtain.on { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* 結尾卡的螢火是 canvas 畫的，不受這條影響，它自己會看這個設定改成只閃不飄 */
+  * { animation-duration: 0.01ms !important; transition-duration: 120ms !important; }
+}

@@ -1,0 +1,25 @@
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.tmp
+
+# 影片：原始檔和測試檔都不要進 repo。
+# GitHub 單檔上限 100MB、Pages 整站上限 1GB，只有壓好的成品才推上去。
+# data/video 底下全部忽略；真正上線的影片是 data/s/ 裡的副本（見下面）。
+data/video/*.mp4
+data/video/*.mov
+data/video/*.insv
+data/video/*.insp
+data/video/*.lrv
+
+# 密碼和正片內容的明文，絕對不能上傳。網站上只放加密過的 assets/js/sealed.js。
+# ⚠ 這個資料夾只存在你的電腦上，記得另外備份。
+private/
+
+# 圖片和影片的原始檔名（001.jpg、lake-1.mp4）一看就知道是什麼，也不上傳。
+# 上線的是 node tools/seal.js 複製到 data/s/ 的亂數檔名版本。
+data/intro/
+
+# 本機開發工具的設定，跟網站無關
+.claude/
+.impeccable/

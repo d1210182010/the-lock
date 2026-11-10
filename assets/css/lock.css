@@ -1,0 +1,274 @@
+/* 密碼鎖頁面 */
+
+/* base.css 為了正片的全螢幕電影感把 html/body 鎖成 overflow: hidden、
+ * 高度固定成一個畫面。但這一頁的內容會隨著提示、求救連結、挑戰模式
+ * 一路長高，鎖著的話超出去的部分會被裁掉而且捲不到——所以這裡必須解開。
+ * lock.css 只有 index.html 會載入，不會影響 story.html。 */
+html, body {
+  overflow-y: auto;
+  height: auto;
+  min-height: calc(var(--vh, 1vh) * 100);
+}
+
+#lock-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--vh, 1vh) * 100);
+  padding: 32px 20px calc(32px + env(safe-area-inset-bottom));
+  gap: 26px;
+  text-align: center;
+  animation: lockIn 1400ms ease both;
+}
+
+@keyframes lockIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 上方一圈很淡的光暈，讓黑底不死板 */
+#lock-page::before {
+  content: '';
+  position: fixed;
+  top: -30%;
+  left: 50%;
+  width: 140vmax;
+  height: 90vmax;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center,
+              rgba(201, 168, 106, 0.10) 0%,
+              rgba(201, 168, 106, 0.03) 40%,
+              transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.lock-title {
+  font-size: clamp(22px, 6.2vw, 30px);
+  letter-spacing: 0.16em;
+  margin: 0;
+  font-weight: 500;
+}
+
+.lock-subtitle {
+  font-size: clamp(13px, 3.6vw, 15px);
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+  line-height: 1.9;
+  margin: -12px 0 0;
+  max-width: 22em;
+}
+
+/* ── 線索 ── */
+.clues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: clamp(12.5px, 3.5vw, 14px);
+  color: var(--ink-dim);
+  letter-spacing: 0.05em;
+  line-height: 1.6;
+  max-width: 24em;
+}
+.clues li {
+  padding: 9px 14px;
+  border: 1px solid rgba(242, 237, 230, 0.10);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.015);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+/* 線索上的「打開街景 / 前往」小按鈕 */
+.clue-link {
+  flex: none;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  text-decoration: none;
+  border: 1px solid rgba(201, 168, 106, 0.4);
+  border-radius: 100px;
+  padding: 5px 12px;
+  white-space: nowrap;
+  transition: background 240ms ease;
+}
+.clue-link:hover { background: rgba(201, 168, 106, 0.14); }
+
+/* ── 沒看過說明的人，引導回表單 ── */
+.guide-link {
+  margin-top: -14px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  text-decoration: none;
+  opacity: 0.75;
+  border-bottom: 1px solid rgba(201, 168, 106, 0.3);
+  padding-bottom: 3px;
+  transition: opacity 240ms ease;
+}
+.guide-link:hover { opacity: 1; }
+
+/* ── 滾輪 ── */
+.wheels {
+  display: flex;
+  gap: clamp(8px, 3vw, 16px);
+  /* 鎖住觸控手勢，上下拖曳才會轉數字而不是捲頁面。
+   * 代價是手指落在轉盤上時捲不動頁面——所以整頁的設計原則是
+   * 「重要的東西都要在不捲動的情況下看得到」：最新回饋放在解鎖鈕正下方，
+   * 挑戰模式的歷史紀錄自己內部捲動，不把整頁撐高。 */
+  touch-action: none;
+}
+
+.wheel {
+  --item-h: clamp(46px, 13vw, 62px);
+  position: relative;
+  width: clamp(46px, 13vw, 60px);
+  height: calc(var(--item-h) * 3);
+  overflow: hidden;
+  border: 1px solid rgba(242, 237, 230, 0.16);
+  border-radius: 5px;
+  background: linear-gradient(180deg,
+              rgba(255,255,255,0.05) 0%,
+              rgba(255,255,255,0.00) 30%,
+              rgba(255,255,255,0.00) 70%,
+              rgba(255,255,255,0.05) 100%);
+  cursor: grab;
+}
+.wheel:active { cursor: grabbing; }
+.wheel.focus { border-color: rgba(201, 168, 106, 0.65); }
+
+.wheel-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  transition: transform 260ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  will-change: transform;
+}
+.wheel-strip.dragging { transition: none; }
+
+.wheel-strip span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--item-h);
+  font-size: calc(var(--item-h) * 0.52);
+  font-variant-numeric: tabular-nums;
+  color: rgba(242, 237, 230, 0.30);
+  transition: color 200ms ease;
+}
+
+/* 中央那一格的上下分隔線 + 選中數字打亮 */
+.wheel::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: var(--item-h);
+  height: var(--item-h);
+  border-top: 1px solid rgba(201, 168, 106, 0.30);
+  border-bottom: 1px solid rgba(201, 168, 106, 0.30);
+  pointer-events: none;
+}
+.wheel-strip span.active { color: var(--ink); }
+
+.wheels.shake { animation: shake 420ms ease; }
+@keyframes shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-7px); }
+  40%, 60% { transform: translateX(7px); }
+}
+.wheels.wrong .wheel { border-color: rgba(217, 83, 79, 0.7); }
+.wheels.right .wheel { border-color: rgba(201, 168, 106, 0.95); }
+
+/* ── 按鈕 ── */
+.lock-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.btn-unlock {
+  padding: 13px 42px;
+  border: 1px solid rgba(201, 168, 106, 0.55);
+  border-radius: 2px;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  font-size: 15px;
+  color: var(--gold);
+  background: rgba(201, 168, 106, 0.05);
+  transition: background 260ms ease, border-color 260ms ease;
+}
+.btn-unlock:hover { background: rgba(201, 168, 106, 0.14); }
+.btn-unlock:disabled { opacity: 0.4; cursor: default; }
+
+.btn-quiet {
+  font-size: 13px;
+  /* 不用 --ink-faint（0.28）——這幾顆是提示、求救連結這種
+     真的需要被看見的東西，太淡在手機上等於不存在 */
+  color: rgba(242, 237, 230, 0.5);
+  letter-spacing: 0.14em;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 2px;
+  transition: color 260ms ease, border-color 260ms ease;
+}
+.btn-quiet:hover {
+  color: var(--ink);
+  border-bottom-color: rgba(242, 237, 230, 0.3);
+}
+/* 求救連結是唯一的求助管道，給它一點暖色，跟其他灰字區隔開來 */
+#btn-help { color: rgba(201, 168, 106, 0.8); }
+#btn-help:hover { color: var(--gold); border-bottom-color: rgba(201, 168, 106, 0.45); }
+
+.hint-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--gold);
+  opacity: 0.75;
+  letter-spacing: 0.06em;
+  min-height: 0;
+}
+.hint-log p { margin: 0; animation: lockIn 600ms ease both; }
+
+.lock-status {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  color: var(--danger);
+  min-height: 1.2em;
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+.lock-status.show { opacity: 1; }
+/* 挑戰模式的回饋不是「錯誤」，是有用的線索，別用警告紅 */
+.lock-status.info { color: rgba(242, 237, 230, 0.72); }
+
+/* 解鎖成功後的畫面 */
+#unlocked {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  font-size: clamp(20px, 5.6vw, 26px);
+  letter-spacing: 0.4em;
+  text-indent: 0.4em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 900ms ease;
+  z-index: 1000;
+}
+#unlocked.on { opacity: 1; }
