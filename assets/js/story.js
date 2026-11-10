@@ -144,14 +144,8 @@
           }
         }
 
-        /* 其餘幾段也趁現在（字卡、十二張圖播放期間）就在背景開始預先下載，
-           不要等到前一段快播完才臨時抓——十二張圖是手動翻頁，時間本來就不固定，
-           愈早開始下載，之後播放中卡頓、跟音樂對不上時間的機會就愈小。
-           這是 <link rel=preload> 的輕量提示，不會真的建立播放器，
-           跟正在播放的第一段搶頻寬的影響很小。 */
-        if (C.video.clips) {
-          for (var pv = 1; pv < C.video.clips.length; pv++) prefetchNext(C.video.clips[pv]);
-        }
+        /* 其餘幾段不在這裡預先下載：手機網路慢的時候，四段一起抓會跟第一段搶頻寬，
+           第一段反而卡住。改成每一段下載完了，才開始抓下一段（見 playOneClip）。 */
 
         /* 音樂只在全景影片播放時出現，這裡不真的播出來——
            只是趁使用者這一下觸控「解鎖」，讓後面影片開始時能不靠新的手勢直接播放
@@ -538,14 +532,14 @@
   function teardownClipProgress() { clipProgressEl.classList.remove('in'); }
 
   /* 播放單一段落，直到播完（或這段真的放不出來）才 resolve。 */
-  function playOneClip(clip, index) {
+  function playOneClip(clip, index, nextClip) {
     return new Promise(function (resolve) {
       if (pano) pano.look(clip.startYaw || 0, clip.startPitch || 0, C.video.fov);
 
       var cues = (clip.captions || []).slice().sort(function (a, b) { return a.at - b.at; });
       var active = -1;
       var hintShown = false, hintHidden = false;
-      var raf, finished = false, hintTimer, bailTimer;
+      var raf, finished = false, watchdog;
 
       function tick() {
         raf = requestAnimationFrame(tick);
@@ -593,8 +587,7 @@
       function finish() {
         if (finished) return;
         finished = true;
-        clearTimeout(hintTimer);
-        clearTimeout(bailTimer);
+        clearInterval(watchdog);
         cancelAnimationFrame(raf);
         capEl.classList.remove('in');
         vid.removeEventListener('ended', finish);
@@ -608,12 +601,37 @@
         setTimeout(finish, 500);
       }
       function onError() { bail('error ' + (vid.error ? vid.error.code : '?')); }
-      function onPlaying() {
-        clearTimeout(hintTimer);
-        if (dragHint.textContent === '影片正在載入…') {
+      var LOADING = '影片正在載入…';
+      function showLoading() {
+        dragHint.textContent = LOADING;
+        dragHint.classList.add('in');
+        hintShown = true;
+      }
+      function hideLoading() {
+        if (dragHint.textContent === LOADING) {
           dragHint.classList.remove('in');
+          dragHint.textContent = '';
           hintShown = false;
         }
+      }
+      function onPlaying() { hideLoading(); }
+
+      /* 跟伺服器重新要一次資料，從卡住的地方接著播——等於自動幫使用者按了重新整理，
+         只是不會從頭來過。影片是靜音的（聲音來自 bgm），所以不需要新的手勢也能播。 */
+      function nudge() {
+        var t = vid.currentTime;
+        console.warn('第 ' + (index + 1) + ' 段影片卡在 ' + t.toFixed(1) + ' 秒，重新載入');
+        vid.load();
+        vid.addEventListener('loadedmetadata', function once() {
+          vid.removeEventListener('loadedmetadata', once);
+          if (t > 0) vid.currentTime = t;
+          vid.play().catch(function () { /* 下一輪檢查會再試 */ });
+        });
+      }
+
+      function fullyBuffered() {
+        var b = vid.buffered;
+        return vid.duration > 0 && b.length > 0 && b.end(b.length - 1) >= vid.duration - 0.5;
       }
 
       vid.addEventListener('ended', finish);
@@ -631,16 +649,36 @@
         });
       }
 
-      hintTimer = setTimeout(function () {
-        if (vid.currentTime === 0 && !finished) {
-          dragHint.textContent = '影片正在載入…';
-          dragHint.classList.add('in');
-          hintShown = true;
+      /* 卡住偵測。手機網路慢的時候，影片可能還沒開始、或播到一半就停下來等資料，
+       * 有時瀏覽器還會從此不再繼續下載（使用者要重新整理才會好）。
+       * 每秒看一次播放時間有沒有往前走：
+       *   卡 2 秒 → 顯示「影片正在載入…」
+       *   卡住、而且下載也停了 8 秒 → 重新要一次資料，從卡住的地方接著播（最多三次）。
+       *     下載還在進行的話就只是網路慢，乖乖等——重新要資料會把已經下載的丟掉，反而更慢。
+       *   卡住、而且下載停了 35 秒 → 放棄這一段、跳下一段，至少整個流程不會卡死
+       * 順便：這一段整支下載完了，才開始預先抓下一段，不跟正在播的搶頻寬。 */
+      var lastT = -1, stuckFor = 0, nudges = 0, prefetched = !nextClip;
+      var lastBuf = -1, idleFor = 0;
+      watchdog = setInterval(function () {
+        if (finished) return;
+        if (!prefetched && fullyBuffered()) { prefetched = true; prefetchNext(nextClip); }
+
+        var b = vid.buffered;
+        var buf = b.length ? b.end(b.length - 1) : 0;
+        if (buf > lastBuf + 0.05) { lastBuf = buf; idleFor = 0; } else { idleFor++; }
+
+        /* 只算「往前走」：重新載入時時間會先歸零再跳回來，那不算有進度 */
+        if (vid.currentTime > lastT + 0.05) {
+          lastT = vid.currentTime;
+          stuckFor = 0;
+          hideLoading();
+          return;
         }
-      }, 8000);
-      bailTimer = setTimeout(function () {
-        if (vid.currentTime === 0 && !finished) bail('載入逾時');
-      }, 40000);
+        stuckFor++;
+        if (stuckFor === 2) showLoading();
+        if (idleFor >= 8 && nudges < 3) { nudges++; idleFor = 0; lastBuf = -1; nudge(); }
+        if (stuckFor >= 35 && idleFor >= 35) bail('卡住太久');
+      }, 1000);
     });
   }
 
@@ -713,7 +751,7 @@
         curtainEl.classList.remove('on');
         await wait(700);
       }
-      await playOneClip(clips[i], i);
+      await playOneClip(clips[i], i, clips[i + 1]);
     }
 
     gyroBtn.classList.add('hidden');
