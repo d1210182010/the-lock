@@ -130,10 +130,14 @@
         startBtn.removeEventListener('click', once);
         startBtn.classList.remove('ready');
 
-        /* 趁使用者這一下觸控，把影片和音樂「解鎖」，
-           之後在沒有手勢的情況下才播得出聲音（iOS 特別吃這套）。 */
-        var firstClip = C.video.clips && C.video.clips[0];
-        if (firstClip) {
+        /* 影片從現在就開始整段下載（見 downloadClip）。開場字卡加十二張圖有兩三分鐘，
+           一般網路足夠在輪到影片之前把第一段抓完，播放時就不會卡。 */
+        downloadAhead();
+
+        /* 影片有聲音的話，趁這一下觸控把它「解鎖」，之後沒有手勢也播得出聲音
+           （iOS 特別吃這套）。影片靜音（預設）就不需要——靜音影片本來就能自動播。 */
+        var firstClip = playableClips()[0];
+        if (firstClip && !C.video.muted) {
           vid.preload = 'auto';
           vid.src = firstClip.src;
           vid.load();
@@ -143,9 +147,6 @@
              .catch(function () { /* 之後會用靜音模式補救 */ });
           }
         }
-
-        /* 其餘幾段不在這裡預先下載：手機網路慢的時候，四段一起抓會跟第一段搶頻寬，
-           第一段反而卡住。改成每一段下載完了，才開始抓下一段（見 playOneClip）。 */
 
         /* 音樂只在全景影片播放時出現，這裡不真的播出來——
            只是趁使用者這一下觸控「解鎖」，讓後面影片開始時能不靠新的手勢直接播放
@@ -501,13 +502,98 @@
     });
   }
 
-  function prefetchNext(nextClip) {
-    if (!nextClip) return;
-    var link = document.createElement('link');
-    link.rel = 'preload';
-    link.as = 'video';
-    link.href = nextClip.src;
-    document.head.appendChild(link);
+  /* ── 影片整段下載完才播 ──
+   * 手機瀏覽器（尤其 iOS Safari）不會替 <video> 整支預先下載，網路一慢就播一下停一下。
+   * 所以自己用 fetch 把整個檔案抓下來，變成 blob: 網址再交給 <video>，播放中就不會再卡。
+   *
+   * 下載順序是一段接一段（不同時抓，免得互搶頻寬），而且最多只超前「正在播的那段」兩段：
+   * 影片每段幾十 MB，全部同時放在手機記憶體裡太吃緊。播完的那段會馬上釋放。
+   * 下載失敗會重試；真的抓不下來，就退回原本的邊下載邊播（見 playOneClip 的卡住偵測）。 */
+  var downloads = [];
+  var playingIndex = -1;
+
+  function playableClips() {
+    return (C.video.clips || []).filter(function (c) { return c && c.src; });
+  }
+
+  function fetchWhole(url, d) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      d.total = parseInt(r.headers.get('content-length'), 10) || 0;
+      if (!r.body || !r.body.getReader) return r.blob();   // 不能邊讀邊算進度的舊瀏覽器
+      var reader = r.body.getReader();
+      var chunks = [];
+      d.loaded = 0;
+      return (function pump() {
+        return reader.read().then(function (x) {
+          if (x.done) return new Blob(chunks, { type: 'video/mp4' });
+          chunks.push(x.value);
+          d.loaded += x.value.length;
+          return pump();
+        });
+      })();
+    });
+  }
+
+  function downloadClip(i) {
+    var clips = playableClips();
+    if (i < 0 || i >= clips.length) return null;
+    if (downloads[i]) return downloads[i];
+    var d = { loaded: 0, total: 0, url: null, done: false };
+    downloads[i] = d;
+    function attempt(n) {
+      return fetchWhole(clips[i].src, d).catch(function (e) {
+        if (n >= 3) throw e;
+        return wait(1500 * n).then(function () { return attempt(n + 1); });
+      });
+    }
+    d.promise = attempt(1).then(function (blob) {
+      d.url = URL.createObjectURL(blob);
+      return d.url;
+    }, function (e) {
+      console.warn('第 ' + (i + 1) + ' 段影片整段下載失敗（' + e.message + '），改成邊下載邊播');
+      d.url = clips[i].src;
+      return d.url;
+    }).then(function (url) {
+      d.done = true;
+      downloadAhead();
+      return url;
+    });
+    return d;
+  }
+
+  /* 依序往下抓，最多抓到「正在播的那段 + 2」 */
+  function downloadAhead() {
+    var clips = playableClips();
+    for (var i = 0; i < clips.length && i <= playingIndex + 2; i++) {
+      var d = downloads[i] || downloadClip(i);
+      if (!d.done) return;          // 一次只抓一段
+    }
+  }
+
+  function releaseClip(i) {
+    var d = downloads[i];
+    if (d && d.url && d.url.indexOf('blob:') === 0) URL.revokeObjectURL(d.url);
+  }
+
+  /* 等這一段下載完；還沒好的話，畫面上顯示下載進度 */
+  async function waitForClip(i) {
+    var d = downloadClip(i);
+    if (d.done) return d.url;
+    var el = $('clip-loading');
+    function show() {
+      var pct = d.total ? Math.min(99, Math.floor(d.loaded / d.total * 100)) : 0;
+      el.textContent = '影片正在載入　' + pct + '%';
+    }
+    show();
+    el.classList.add('in');
+    var timer = setInterval(show, 300);
+    try {
+      return await d.promise;
+    } finally {
+      clearInterval(timer);
+      el.classList.remove('in');
+    }
   }
 
   /* ── 分段進度條（多段影片時，畫面上緣那排像限時動態的細線） ── */
@@ -532,7 +618,7 @@
   function teardownClipProgress() { clipProgressEl.classList.remove('in'); }
 
   /* 播放單一段落，直到播完（或這段真的放不出來）才 resolve。 */
-  function playOneClip(clip, index, nextClip) {
+  function playOneClip(clip, index) {
     return new Promise(function (resolve) {
       if (pano) pano.look(clip.startYaw || 0, clip.startPitch || 0, C.video.fov);
 
@@ -589,6 +675,7 @@
         finished = true;
         clearInterval(watchdog);
         cancelAnimationFrame(raf);
+        hideLoading();
         capEl.classList.remove('in');
         vid.removeEventListener('ended', finish);
         vid.removeEventListener('error', onError);
@@ -601,19 +688,12 @@
         setTimeout(finish, 500);
       }
       function onError() { bail('error ' + (vid.error ? vid.error.code : '?')); }
-      var LOADING = '影片正在載入…';
+      var loadEl = $('clip-loading');
       function showLoading() {
-        dragHint.textContent = LOADING;
-        dragHint.classList.add('in');
-        hintShown = true;
+        loadEl.textContent = '影片正在載入…';
+        loadEl.classList.add('in');
       }
-      function hideLoading() {
-        if (dragHint.textContent === LOADING) {
-          dragHint.classList.remove('in');
-          dragHint.textContent = '';
-          hintShown = false;
-        }
-      }
+      function hideLoading() { loadEl.classList.remove('in'); }
       function onPlaying() { hideLoading(); }
 
       /* 跟伺服器重新要一次資料，從卡住的地方接著播——等於自動幫使用者按了重新整理，
@@ -629,10 +709,6 @@
         });
       }
 
-      function fullyBuffered() {
-        var b = vid.buffered;
-        return vid.duration > 0 && b.length > 0 && b.end(b.length - 1) >= vid.duration - 0.5;
-      }
 
       vid.addEventListener('ended', finish);
       vid.addEventListener('error', onError);
@@ -656,12 +732,12 @@
        *   卡住、而且下載也停了 8 秒 → 重新要一次資料，從卡住的地方接著播（最多三次）。
        *     下載還在進行的話就只是網路慢，乖乖等——重新要資料會把已經下載的丟掉，反而更慢。
        *   卡住、而且下載停了 35 秒 → 放棄這一段、跳下一段，至少整個流程不會卡死
-       * 順便：這一段整支下載完了，才開始預先抓下一段，不跟正在播的搶頻寬。 */
-      var lastT = -1, stuckFor = 0, nudges = 0, prefetched = !nextClip;
+       * 影片正常是整段下載完才播（見 downloadClip），不會走到這裡；
+       * 這是整段下載失敗、退回邊下載邊播時的保險。 */
+      var lastT = -1, stuckFor = 0, nudges = 0;
       var lastBuf = -1, idleFor = 0;
       watchdog = setInterval(function () {
         if (finished) return;
-        if (!prefetched && fullyBuffered()) { prefetched = true; prefetchNext(nextClip); }
 
         var b = vid.buffered;
         var buf = b.length ? b.end(b.length - 1) : 0;
@@ -734,24 +810,32 @@
     showScene('videoScene');
     /* 音樂是用來取代影片本身的聲音的，所以只在影片靜音時才播——
        如果哪天把 video.muted 改回 false，影片自己有聲音了，就不再疊加音樂。 */
-    if (C.video.muted) startBgm();
-    /* 所有段落的預先下載已經在「輕觸開始」那一刻就一次全部觸發過了
-       （見 waitForTap），這裡不用再一段一段臨時補。 */
-
     for (var i = 0; i < clips.length; i++) {
       if (i === 0) {
         await wait(500);                        // 讓「淡入影片場景」的轉場先跑完
       } else {
         curtainEl.classList.add('on');
         await wait(700);
-        vid.pause();
-        vid.src = clips[i].src;
-        vid.load();
-        await waitReady(vid, 6000);
+      }
+      /* 整段下載完才換上去（黑幕後面等；第一段則是在黑畫面上顯示下載進度） */
+      var url = await waitForClip(i);
+      vid.pause();
+      vid.src = url;
+      vid.load();
+      await waitReady(vid, 6000);
+      if (i > 0) {
+        releaseClip(i - 1);                     // 上一段已經換下來了，釋放記憶體
         curtainEl.classList.remove('on');
         await wait(700);
+      } else if (C.video.muted) {
+        /* 音樂等第一段準備好才開始，跟影片、字幕的時間才對得上。
+           音樂是用來取代影片本身的聲音的，所以只在影片靜音時才播——
+           如果哪天把 video.muted 改回 false，影片自己有聲音了，就不再疊加音樂。 */
+        startBgm();
       }
-      await playOneClip(clips[i], i, clips[i + 1]);
+      playingIndex = i;
+      downloadAhead();                          // 往後多抓一段
+      await playOneClip(clips[i], i);
     }
 
     gyroBtn.classList.add('hidden');

@@ -263,6 +263,25 @@
   z-index: 4;
 }
 #drag-hint.in { opacity: 1; }
+
+/* 影片下載進度。換段時黑幕會蓋住整個畫面，所以這個要浮在黑幕（z-index 900）上面 */
+#clip-loading {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 910;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  letter-spacing: 0.14em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+#clip-loading.in { opacity: 1; }
 #drag-hint::before { content: '↔  '; opacity: 0.7; }
 
 /* 影片上的兩顆小藥丸按鈕：體感、開啟聲音 */
