@@ -460,6 +460,10 @@
   margin: 0;
   max-width: 20em;
 }
+.end-reminder {
+  margin-top: -6px;
+  color: var(--gold);
+}
 .end-actions {
   display: flex;
   flex-direction: column;

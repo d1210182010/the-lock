@@ -444,7 +444,7 @@
   }
 
   function startTextDecay(durationMs) {
-    var decayers = ['end-eyebrow', 'end-names', 'end-date', 'end-closing']
+    var decayers = ['end-eyebrow', 'end-names', 'end-date', 'end-closing', 'end-reminder']
       .map(function (id) { return $(id); })
       .filter(Boolean)
       .map(makeDecayer);
@@ -992,6 +992,8 @@
     $('end-names').textContent = E.names;
     $('end-date').textContent = E.date;
     $('end-closing').textContent = E.closing;
+    var rem = $('end-reminder');
+    if (E.reminder) rem.textContent = E.reminder; else rem.classList.add('hidden');
 
     var gb = $('end-guestbook');
     if (E.guestbookUrl && E.guestbookUrl.indexOf('http') === 0 && E.guestbookUrl.indexOf('請換成') === -1) {
